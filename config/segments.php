@@ -13,7 +13,7 @@ return [
         'college',
     ],
     'degree' => [
-        'associate',
+        //'associate',
         'bachelor',
         "bachelor's",
         'masters',
@@ -30,6 +30,7 @@ return [
         'professional background',
         'industry experience',
         'experience',
+        'career history'
     ],
     'skill' => [
         'credentials',

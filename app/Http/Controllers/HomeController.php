@@ -548,7 +548,8 @@ class HomeController extends BaseController
 
                     $row = $lines[$i];
 
-                    if(!$this->searchKeywordsInText($projectKeywords, $row) &&
+                    if(
+                        //!$this->searchKeywordsInText($projectKeywords, $row) &&
                         !$this->searchKeywordsInText($skillKeywords, $row) &&
                         !$this->searchKeywordsInText($accomplishmentKeywords, $row) &&
                         !$this->searchKeywordsInText($experienceKeywords, $row)
@@ -578,7 +579,7 @@ class HomeController extends BaseController
 
         $educationKeywords      = $this->getEducationSegmentKeywords();
         $degreeKeywords         = $this->getDegreeSegmentKeywords();
-        $projectKeywords        = $this->getProjectSegmentKeywords();
+        //$projectKeywords        = $this->getProjectSegmentKeywords();
         $skillKeywords          = $this->getSkillSegmentKeywords();
         $accomplishmentKeywords = $this->getAccomplishmentSegmentKeywords();
         $experienceKeywords     = $this->getExperienceSegmentKeywords();
@@ -599,7 +600,8 @@ class HomeController extends BaseController
 
                     $row = $lines[$i];
 
-                    if(!$this->searchKeywordsInText($projectKeywords, $row) &&
+                    if(
+                        //!$this->searchKeywordsInText($projectKeywords, $row) &&
                         !$this->searchKeywordsInText($skillKeywords, $row) &&
                         !$this->searchKeywordsInText($accomplishmentKeywords, $row) &&
                         !$this->searchKeywordsInText($educationKeywords, $row) &&
@@ -633,7 +635,6 @@ class HomeController extends BaseController
         $educationSegment = $this->getEducationSegment($text);
 
         //dd($educationSegment);
-
 
         $pattern      = $this->dateRegex();
         $degrees      = Degree::getDegrees();
@@ -688,36 +689,43 @@ class HomeController extends BaseController
             }
         }
 
+        //dd($datesSegments);
+
         for($i = 0; $i < count($datesSegments); $i++){
 
             $flag = false;
 
-            for($j = 0; $j < count($datesSegments[$i]); $j++){
+            for($j = 0; $j < count($datesSegments[$i]); $j++) {
+
+                //var_dump(preg_replace("/(?![.=$'€%-])\p{P}/u", "", $datesSegments[$i][$j]));
 
                 foreach ($universities as $university) {
 
-                    if(strpos($datesSegments[$i][$j], $university) > - 1){
+                    if (strpos(preg_replace("/(?![.=$'€%-])\p{P}/u", "", strtolower($datesSegments[$i][$j])), str_replace('"', '', strtolower($university))) > -1) {
                         $schoolsFound[] = $university;
                         $flag = true;
                         break;
                     }
                 }
+            }
 
-                if($flag) {
-                    break;
-                } else {
+            if(!$flag) {
 
-                    $entities = NLP::entitiy_types($datesSegments[$i][$j]);
+                for ($j = 0; $j < count($datesSegments[$i]); $j++) {
 
-                    if(!empty($entities)){
-                        if(isset($entities['Organizations'])){
-                            $schoolsFound[] = $entities['Organizations'][0];
+                    $entities = NLP::spacy_entities($datesSegments[$i][$j]);
+
+                    if (!empty($entities)) {
+                        //dd($entities);
+                        if (isset($entities['ORG'])) {
+                            $schoolsFound[] = $entities['ORG'][0];
                             $flag = true;
                             break;
                         }
                     }
-                };
+                }
             }
+
 
             if(!$flag) {
                 $schoolsFound[] = '';
@@ -814,30 +822,62 @@ class HomeController extends BaseController
             }
         }
 
+        $companyKeywords = ["name of employer", "company", "employer", 'organization'];
+        $replace = ['', '', '', ''];
+
         for($i = 0; $i < count($datesSegments); $i++){
 
             $flag = false;
 
-            for($j = 0; $j < count($datesSegments[$i]); $j++){
+            for($j = 0; $j < count($datesSegments[$i]); $j++) {
 
-                foreach ($employers as $employer) {
+                //echo $datesSegments[$i][$j];
+                //echo "<br>";
+                foreach($companyKeywords as $comopanyKeyword) {
 
-                    if(strpos(strtolower($datesSegments[$i][$j]), strtolower(trim($employer))) > -1){
-                        $employersFound[] = $employer;
+                    if (strpos(strtolower($datesSegments[$i][$j]), $comopanyKeyword) > -1) {
+                        $employersFound[] = preg_replace("/(?![.=$'€%-])\p{P}/u", "", ucwords(trim(str_replace($companyKeywords, $replace, strtolower($datesSegments[$i][$j])))));
+
                         $flag = true;
                         break;
                     }
                 }
+                if($flag) break;
+            }
 
-                if($flag) {
-                    break;
-                } else {
+            if(!$flag) {
 
-                    $entities = NLP::entitiy_types($datesSegments[$i][$j]);
+                for ($j = 0; $j < count($datesSegments[$i]); $j++) {
 
-                    if(!empty($entities)){
-                        if(isset($entities['Organizations'])){
-                            $employersFound[] = $entities['Organizations'][0];
+                    if ($flag) {
+                        break;
+                    } else {
+
+                        $entities = NLP::spacy_entities($datesSegments[$i][$j], 'en');
+
+                        if (!empty($entities)) {
+
+                            //var_dump($entities);
+
+                            if (isset($entities['ORG'])) {
+                                $employersFound[] = $entities['ORG'][0];
+                                $flag = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($flag) {
+                        break;
+                    } else {
+
+                        foreach ($employers as $employer) {
+
+                            if (strpos(strtolower($datesSegments[$i][$j]), strtolower(trim($employer))) > -1) {
+                                $employersFound[] = $employer;
+                                $flag = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -871,6 +911,11 @@ class HomeController extends BaseController
 
     public function normalizeName($name){
 
+        $search  = ['Name', ':'];
+        $replace = ['', ''];
+
+        $name = str_replace($search, $replace, $name);
+
         return ucwords(strtolower($name));
     }
 
@@ -890,7 +935,8 @@ class HomeController extends BaseController
 
         $patterns = [];
 
-        $patterns[] = '(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})[\s–\-]+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})';
+        $patterns[] = '(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})[\s–\-\—]+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})';
+        $patterns[] = '(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sept(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})[\s–\-\—]+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sept(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})';
         $patterns[] = '(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})[\s­]+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})';
         $patterns[] = '(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})[\s­]+(till now)';
         $patterns[] = '(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{4})[\s–\-]+(till now)';
@@ -902,13 +948,17 @@ class HomeController extends BaseController
         $patterns[] = '([0-9]{2})\.([0-9]{4})[\s–\-]+([0-9]{2})\.([0-9]{4})';
         $patterns[] = '([0-9]{2})\/([0-9]{4})[\s–\-]+(present)';
         $patterns[] = '([0-9]{2})\.([0-9]{4})[\s–\-]+(present)';
+        $patterns[] = '([0-9]{2})\/([0-9]{4})[\s–\-]+(now)';
         $patterns[] = '([0-9]{2})\/([0-9]{4})[\s–\-]+(till now)';
         $patterns[] = '([0-9]{2})\.([0-9]{4})[\s–\-]+(till now)';
         $patterns[] = '([0-9]{2})\/([0-9]{4})[\s–\-]+(till today)';
         $patterns[] = '([0-9]{2})\.([0-9]{4})[\s–\-]+(till today)';
         $patterns[] = '([0-9]{4})[\s–\-]+([0-9]{4})';
+        $patterns[] = '([0-9]{4})[\s–\—]+([0-9]{4})';
+        $patterns[] = '([0-9]{4}) to ([0-9]{4})';
         $patterns[] = '([0-9]{4})[\s–\-]+(present)';
         $patterns[] = '([0-9]{4})[\s–\-]+(till now)';
+        $patterns[] = '([0-9]{4})[\s–\-]+(until now)';
         $patterns[] = '([0-9]{4})[\s–\-]+(till today)';
         $patterns[] = '([0-9]{4})[\s–\-]+(still)';
         $patterns[] = '([0-9]{4})[\s–\-]+(ongoing)';
